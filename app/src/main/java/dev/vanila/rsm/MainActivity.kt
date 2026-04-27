@@ -2239,6 +2239,16 @@ const isWLED = (function() {
                     return false
                 }
 
+                val viewHeight = webView.height
+                //  нижние 25% экрана
+                val bottomZoneBoundary = viewHeight * 0.75
+
+                // выше - игнорируем
+                if (e1.y < bottomZoneBoundary) {
+                    isFlingingUp = false
+                    return false
+                }
+
                 // Вычисляем расстояние по вертикали
                 val diffY = e1.y - e2.y
                 // Вычисляем расстояние по горизонтали (чтобы исключить диагональные жесты)

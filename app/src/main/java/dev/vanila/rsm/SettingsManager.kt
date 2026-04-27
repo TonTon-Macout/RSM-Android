@@ -163,7 +163,7 @@ object SettingsManager {
         set(value) = prefs.edit { putBoolean(KEY_IS_HISTORY, value) }
 
     var isSwipeToRefresh: Boolean
-        get() = prefs.getBoolean(KEY_IS_SWIPE_TO_REFRESH, true)
+        get() = prefs.getBoolean(KEY_IS_SWIPE_TO_REFRESH, false)
         set(value) = prefs.edit { putBoolean(KEY_IS_SWIPE_TO_REFRESH, value) }
 
     var isSwipeOpenPanel: Boolean
@@ -297,7 +297,7 @@ object SettingsManager {
      * прозрачная размытая шапка
      */
     var isBlurHeader: Boolean
-        get() = prefs.getBoolean(KEY_BLUR_HEADER, true)
+        get() = prefs.getBoolean(KEY_BLUR_HEADER, false)
         set(value) = prefs.edit { putBoolean(KEY_BLUR_HEADER, value) }
 
     var isVibrato: Boolean

@@ -12,11 +12,28 @@ android {
         minSdk = 30
         targetSdk = 36
         versionCode = 1
-        versionName = "1.2.6"
+        versionName = "1.2.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as com.android.build.gradle.internal.api.ApkVariantOutputImpl
+            val baseName = "RSM"
+            val version = variant.versionName
+            val buildType = variant.buildType.name
 
+            // Формируем имя: RSM_1.2.6.apk (для release) или RSM_1.2.6-debug.apk
+            val newName = if (buildType == "release") {
+                "${baseName}_${version}.apk"
+            } else {
+                "${baseName}_${version}-${buildType}.apk"
+            }
+
+            output.outputFileName = newName
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
