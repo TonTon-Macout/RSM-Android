@@ -1,0 +1,29 @@
+gitignore
+# Временные файлы сборки Android
+/build
+/*/build
+.gradle/
+.cxx/
+.externalNativeBuild/
+captures/
+
+# Настройки Android Studio и IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Локальные файлы конфигурации (содержат пути к SDK и ключи)
+local.properties
+
+# Файлы операционных систем
+.DS_Store
+Thumbs.db
+
+# Результаты сборки (APK и Bundle)
+*.apk
+*.aab
+/app/release/
+
+# Логи
+*.log
