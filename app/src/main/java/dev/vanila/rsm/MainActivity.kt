@@ -213,6 +213,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var currentOpenedDevice: Device? = null
+    private var isNavigatingBack = false
 
     private var snow_man = false
     private var snow_man_animation = false
@@ -1040,8 +1041,9 @@ class MainActivity : AppCompatActivity() {
                             lastGoBackUrl = webView.url // Запоминаем текущий URL перед возвратом
                             webView.goBack()
 
-                            val device = findDeviceByUrl(previousUrl)
-                            viewManager.updateLabel(device)
+                            isNavigatingBack = true
+                            //val device = findDeviceByUrl(previousUrl)
+                            //viewManager.updateLabel(device)
                             return
                         }
                     }
@@ -1631,6 +1633,30 @@ class MainActivity : AppCompatActivity() {
                             "hasError: $hasError"
                 )
                 hasError = false
+
+                if (isNavigatingBack) { // нажали взад
+                    isNavigatingBack = false
+                    val device = findDeviceByUrl(url ?: "")
+                    currentOpenedDevice = device
+                    viewManager.updateLabel(device)
+
+                    if (device != null) {
+                        saveLastOpenedDevice(device)
+
+                        // Синхронизируем blur / padding как в openDevice
+                        if (!SettingsManager.isBlurHeader && device.headerBlur) {
+                            headerBlur.visibility = View.GONE
+                            val px = (50 * resources.displayMetrics.density).toInt()
+                            swipeRefresh.setPadding(0, px, 0, 0)
+                        } else if (device.headerBlur) {
+                            swipeRefresh.setPadding(0, 0, 0, 0)
+                            headerBlur.alpha = 1f
+                            headerBlur.visibility = View.VISIBLE
+                        }
+                    }
+
+                    Log.d("BackPressed", "onPageStarted после goBack: url=$url, device=${device?.name}")
+                }
 
 
                 //if (!isLoadingFromSwipe)
@@ -2239,12 +2265,19 @@ const isWLED = (function() {
                     return false
                 }
 
-                val viewHeight = webView.height
-                //  нижние 25% экрана
-                val bottomZoneBoundary = viewHeight * 0.75
+               // val viewHeight = webView.height
+               // //  нижние 25% экрана
+               // val bottomZoneBoundary = viewHeight * 0.25
+               // // выше - игнорируем
+               // if (e1.y < bottomZoneBoundary) {
+               //     isFlingingUp = false
+               //     return false
+               // }
 
-                // выше - игнорируем
-                if (e1.y < bottomZoneBoundary) {
+                val viewHeight = webView.height
+                val bottomZoneHeight = viewHeight * 0.25f   // нижние 25%
+                val bottomZoneStart = viewHeight - bottomZoneHeight
+                if (e1.y < bottomZoneStart) {
                     isFlingingUp = false
                     return false
                 }
@@ -5767,6 +5800,7 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
             if (text != null) {
                 labelText.text = text
                 labelIcon.visibility = View.GONE
+                updateLabelDirection()
                 return
             }
 
@@ -5807,6 +5841,7 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
                         labelViewContainer.paddingBottom
                     )
                 }
+                updateLabelDirection()
                 return
 
             }
@@ -5843,6 +5878,7 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
                         labelViewContainer.paddingBottom
                     )
                 }
+                updateLabelDirection()
                 return
             }
 
@@ -5879,7 +5915,7 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
                         labelViewContainer.paddingBottom
                     )
                 }
-
+                updateLabelDirection()
             }
             else {
                 // Устанавливаем имя
@@ -5993,163 +6029,226 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
                         labelViewContainer.paddingBottom
                     )
                 }
+                updateLabelDirection()
             }
         }
         @SuppressLint("ClickableViewAccessibility")
         fun setupLabelDrag() {
 
-
             val displayMetrics = resources.displayMetrics
-            val edgeMarginPx = (edgeMargin * displayMetrics.density).toInt()
-            val clickThreshold = 10 // максимальное движение для определения клика в px
+            val clickThreshold = 10 // Максимальное движение для определения клика в px
+
+            val minTopMarginPx = (70 * displayMetrics.density).toInt()
             val minBottomMarginPx = (50 * displayMetrics.density).toInt()
 
             // Переменные для отслеживания двойного клика
             var lastClickTime: Long = 0
-            val doubleClickInterval = 200L // интервал для двойного клика в мс
+            val doubleClickInterval = 200L
             var isDoubleClick = false
 
             // Переменные для отслеживания свайпа
             var isHorizontalSwipe = false
 
             labelContainer.setOnTouchListener { view, event ->
+
                 when (event.action) {
+
                     MotionEvent.ACTION_DOWN -> {
                         // Запоминаем начальные позиции
                         initialX = view.x
                         initialY = view.y
+
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
+
                         isDragging = false
                         isHorizontalSwipe = false
+
                         true
                     }
 
                     MotionEvent.ACTION_MOVE -> {
+
                         if (!isDragging && !isHorizontalSwipe) {
-                            // Проверяем, это свайп влево или просто перемещение
+
                             val dx = event.rawX - initialTouchX
                             val dy = event.rawY - initialTouchY
 
-                            // Если движение достаточно большое по горизонтали - начинаем обработку свайпа
-                            if (abs(dx) > swipeThreshold && abs(dy) < swipeThreshold) {
-                                isHorizontalSwipe = true
+                            // Обрабатываем преимущественно горизонтальные движения
+                            if (abs(dx) > swipeThreshold &&
+                                abs(dy) < swipeThreshold
+                            ) {
 
-                                // Свайп слева направо (dx > 0) - переключаем видимость текста
-                                if (dx > 0) {
+                                // Определяем направление движения к центру экрана
+                                val dragTowardCenter = if (SettingsManager.isLabelRight) {
+                                    dx < 0
+                                } else {
+                                    dx > 0
+                                }
 
-                                    if (viewManager.labelText.isVisible) {
-                                        viewManager.labelText.visibility = View.GONE
-                                    } else {
+                                if (dragTowardCenter) {
+
+                                    // Начинаем перетаскивание
+                                    isDragging = true
+
+                                    // Показываем текст
+                                    if (!viewManager.labelText.isVisible) {
                                         viewManager.labelText.visibility = View.VISIBLE
                                     }
 
+                                } else {
+
+                                    // Свайп от центра к краю:
+                                    // переключаем видимость текста
+                                    isHorizontalSwipe = true
+
+                                    viewManager.labelText.visibility =
+                                        if (viewManager.labelText.isVisible) {
+                                            View.GONE
+                                        } else {
+                                            View.VISIBLE
+                                        }
 
                                     sitchPaddingLabelName()
+
                                     return@setOnTouchListener true
                                 }
-                            }
-
-                            // Если движение достаточно большое по горизонтали влево - начинаем драг
-                            if (abs(dx) > swipeThreshold && abs(dy) < swipeThreshold && dx < 0) {
-                                isDragging = true
-
-                                // Сдвигаем панель от края
-                                view.x =
-                                    (displayMetrics.widthPixels - view.width - edgeMarginPx).toFloat()
-
-                                if (!viewManager.labelText.isVisible) {
-                                    viewManager.labelText.visibility = View.VISIBLE
-                                }
-
                             }
                         }
 
                         if (isDragging) {
-                            // Перемещаем только по вертикали
+
+                            // Горизонтальное перемещение за пальцем
+                            val newX = initialX + (event.rawX - initialTouchX)
+
+                            val maxX =
+                                (displayMetrics.widthPixels - view.width).toFloat()
+
+                            view.x = newX.coerceIn(0f, maxX)
+
+                            // Вертикальное перемещение за пальцем
                             val newY = initialY + (event.rawY - initialTouchY)
 
-                            // Ограничиваем перемещение в пределах экрана
-                            //val maxY = displayMetrics.heightPixels - view.height
+                            // Ограничиваем перемещение сверху и снизу
+                            val minY = minTopMarginPx.toFloat()
 
-                            val maxY = displayMetrics.heightPixels - view.height - minBottomMarginPx
+                            val maxY = (
+                                    displayMetrics.heightPixels -
+                                            view.height -
+                                            minBottomMarginPx
+                                    ).toFloat()
 
-                            val clampedY = newY.coerceIn(0f, maxY.toFloat())
-
-                            view.y = clampedY
+                            view.y = newY.coerceIn(minY, maxY)
+                            updateLabelBackground()
                         }
+
                         sitchPaddingLabelName()
+
                         true
                     }
 
                     MotionEvent.ACTION_UP -> {
+
                         if (isDragging) {
-                            // Сохраняем новую позицию Y
+
+                            // Определяем сторону по центру ярлыка
+                            val screenMiddle =
+                                displayMetrics.widthPixels / 2f
+
+                            val labelMiddle =
+                                view.x + view.width / 2f
+
+                            // Сохраняем выбранную сторону
+                            SettingsManager.isLabelRight =
+                                labelMiddle >= screenMiddle
+
+                            updateLabelDirection()
+
+                            // Сохраняем вертикальную позицию
                             saveLabelPosition(view.y)
-                            // Возвращаем к правому краю
-                            view.x = (displayMetrics.widthPixels - view.width).toFloat()
+
+                            // Прижимаем ярлык к выбранному краю
+                            updateLabelDirection()
+                            snapLabelToSide(view)
+
                         } else if (!isHorizontalSwipe) {
-                            // Проверяем, был ли это клик (маленькое перемещение)
+
+                            // Проверяем, был ли это клик
                             val dx = abs(event.rawX - initialTouchX)
                             val dy = abs(event.rawY - initialTouchY)
 
                             if (dx < clickThreshold && dy < clickThreshold) {
+
                                 val currentTime = System.currentTimeMillis()
 
                                 // Проверяем двойной клик
                                 if (currentTime - lastClickTime < doubleClickInterval) {
-                                    // Двойной клик - отменяем одинарный и открываем на anchorPoint
+
                                     isDoubleClick = true
+
                                     if (SettingsManager.isDoubleClickRefreshEnabled) {
+
                                         openUrl(viewManager.getUrlFronAddressField())
-                                    }
-                                    else {
-                                        val anchorPoint = 1400f / resources.displayMetrics.heightPixels
+
+                                    } else {
+
+                                        val anchorPoint =
+                                            1400f / resources.displayMetrics.heightPixels
+
                                         slidingLayout.anchorPoint = anchorPoint
                                         slidingLayout.panelState = PanelState.ANCHORED
                                     }
 
-                                    //val mainLayout = findViewById<FrameLayout>(R.id.main)
-                                    //mainLayout.setBackgroundColor(topColor)
                                     lastClickTime = 0
+
                                 } else {
-                                    // Одинарный клик - но откладываем выполнение на случай двойного клика
+
+                                    // Одинарный клик с задержкой для проверки двойного
                                     lastClickTime = currentTime
                                     isDoubleClick = false
 
-                                    // Запускаем отложенную проверку для одинарного клика
                                     view.postDelayed({
+
                                         if (!isDoubleClick) {
-                                            //val mainLayout = findViewById<FrameLayout>(R.id.main)
-                                            // Если за время задержки не было двойного клика - выполняем одинарный
-                                            if (slidingLayout.panelState !=  PanelState.EXPANDED) {
+
+                                            if (slidingLayout.panelState != PanelState.EXPANDED) {
+
                                                 slidingLayout.panelState = PanelState.EXPANDED
-                                                //startHeaderPlay()
+
                                                 viewManager.setLabelTheme(light = true)
-                                                ////mainLayout.setBackgroundColor("#225C6E".toColorInt())
+
                                             } else {
+
                                                 slidingLayout.panelState = PanelState.COLLAPSED
-                                                //mainLayout.setBackgroundColor(topColor)
                                             }
                                         }
+
                                     }, doubleClickInterval)
                                 }
                             }
                         }
+
                         isDragging = false
                         isHorizontalSwipe = false
+
                         true
                     }
 
                     MotionEvent.ACTION_CANCEL -> {
+
                         if (isDragging) {
-                            // Сохраняем новую позицию Y
+
+                            // Сохраняем вертикальную позицию
                             saveLabelPosition(view.y)
-                            // Возвращаем к правому краю
-                            view.x = (displayMetrics.widthPixels - view.width).toFloat()
+
+                            // Возвращаем к сохранённой стороне
+                            updateLabelDirection()
+                            snapLabelToSide(view)
                         }
+
                         isDragging = false
                         isHorizontalSwipe = false
+
                         true
                     }
 
@@ -6157,16 +6256,87 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
                 }
             }
 
-            // Восстанавливаем сохраненную позицию при создании
+            updateLabelDirection()
+            // Восстанавливаем сохранённую вертикальную позицию
             restoreLabelPosition()
-            // и проверяем не уехало ли куда
-            checkLabelPosition()
+            updateLabelBackground()
 
+            // Прижимаем ярлык к сохранённой стороне
+            snapLabelToSide(labelContainer)
+
+            // Проверяем допустимые границы экрана
+            checkLabelPosition()
         }
+        /**
+         * Прижимает ярлык к стороне, указанной в настройках.
+         *
+         * isLabelRight = true  — правая сторона.
+         * isLabelRight = false — левая сторона.
+         */
+        fun snapLabelToSide(view: View) {
+            val screenWidth = resources.displayMetrics.widthPixels
+
+            view.x = if (SettingsManager.isLabelRight) {
+                (screenWidth - view.width).toFloat()
+            } else {
+                0f
+            }
+            updateLabelBackground()
+        }
+        /**
+         * Меняет расположение иконки и текста ярлыка
+         * в зависимости от стороны экрана.
+         */
+        fun updateLabelDirection() {
+            val container = labelViewContainer as? LinearLayout ?: return
+
+            val iconContainer = container.findViewById<View>(R.id.floating_icon_cont)
+                ?: return
+
+            val text = container.findViewById<View>(R.id.floating_address_field)
+                ?: return
+
+            // Сохраняем параметры элементов
+            val iconParams = iconContainer.layoutParams
+            val textParams = text.layoutParams
+
+            // Убираем старый порядок
+            container.removeAllViews()
+
+            // Справа: текст, затем иконка.
+            // Слева: иконка, затем текст.
+            if (SettingsManager.isLabelRight) {
+                container.addView(iconContainer, iconParams)
+                container.addView(text, textParams)
+            } else {
+                container.addView(text, textParams)
+                container.addView(iconContainer, iconParams)
+            }
+
+            // Дополнительный отступ справа, когда ярлык находится слева
+            val params = iconContainer.layoutParams as LinearLayout.LayoutParams
+
+            params.marginEnd = if (!SettingsManager.isLabelRight) {
+                (8 * resources.displayMetrics.density).toInt()
+            } else {
+                0
+            }
+
+            iconContainer.layoutParams = params
+
+            updateLabelBackground()
+            // Порядок теперь задаём вручную
+            container.layoutDirection = View.LAYOUT_DIRECTION_LTR
+        }
+
+
+
+
+
         fun sitchPaddingLabelName() {
-            var paddingEnd = 0
-            var paddingTop = 0
-            var paddingBottom = 0
+            val paddingEnd: Int
+            val paddingTop: Int
+            val paddingBottom: Int
 
             if (labelText.isVisible) {
                 paddingEnd = 0
@@ -6176,9 +6346,8 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
                 paddingEnd = (20 * resources.displayMetrics.density).toInt()
                 paddingTop = (5 * resources.displayMetrics.density).toInt()
                 paddingBottom = (6 * resources.displayMetrics.density).toInt()
-
-
             }
+
             labelViewContainer.setPaddingRelative(
                 labelViewContainer.paddingStart,
                 paddingTop,
@@ -6186,6 +6355,32 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
                 paddingBottom
             )
         }
+
+        fun updateLabelBackground() {
+            val backgroundRes = when {
+                // Ярлык оторван от обоих краёв
+                labelContainer.x > 0 &&
+                        labelContainer.x + labelContainer.width < resources.displayMetrics.widthPixels -> {
+                    R.drawable.label_background_center
+                }
+
+                // Ярлык у левого края
+                !SettingsManager.isLabelRight -> {
+                    R.drawable.label_background_left
+                }
+
+                // Ярлык у правого края
+                else -> {
+                    R.drawable.label_background
+                }
+            }
+
+            findViewById<BlurView>(R.id.blur).setBackgroundResource(backgroundRes)
+        }
+
+
+
+
         fun saveLabelPosition(yPosition: Float) {
             val sharedPref = getPreferences(Context.MODE_PRIVATE)
             with(sharedPref.edit()) {
@@ -6205,34 +6400,71 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
 
                 labelContainer.y = clampedY
             }
-        }
-        fun checkLabelPosition() {
-            
-            // Ждём, пока вид полностью измерен
-            labelContainer.post {
-                val displayMetrics = resources.displayMetrics
-                val minBottomMarginPx = (50 * displayMetrics.density).toInt()
-                val safeTopPositionPx = (150 * displayMetrics.density) // 150 dp от верха
+            // Следим за изменением размера ярлыка
+            labelContainer.addOnLayoutChangeListener {
+                    view, left, top, right, bottom,
+                    oldLeft, oldTop, oldRight, oldBottom ->
 
-                val maxAllowedY =
-                    displayMetrics.heightPixels - labelContainer.height - minBottomMarginPx
+                val widthChanged = (right - left) != (oldRight - oldLeft)
 
-                // Если текущая позиция слишком низко или вообще за экраном
-                if (labelContainer.y > maxAllowedY || labelContainer.y + labelContainer.height > displayMetrics.heightPixels) {
-
-                    val newY = safeTopPositionPx.coerceAtMost(maxAllowedY.toFloat()) // на всякий случай
-
-                    labelContainer.y = newY
-                    Log.e("MainActivity", "ой, ярлык уехал за экран :(")
-                    // Сохраняем исправленную позицию
-                    saveLabelPosition(newY)
-
-                    // Прижимаем к правому краю (как и при обычном драге)
-                    labelContainer.x = (displayMetrics.widthPixels - labelContainer.width).toFloat()
+                if (widthChanged && !isDragging) {
+                    updateLabelDirection()
+                    snapLabelToSide(view)
                 }
             }
         }
 
+        fun checkLabelPosition() {
+
+            // Ждём, пока вид полностью измерен
+            labelContainer.post {
+
+                val displayMetrics = resources.displayMetrics
+
+                val minBottomMarginPx =
+                    (50 * displayMetrics.density).toInt()
+
+                val minTopMarginPx =
+                    (150 * displayMetrics.density).toInt()
+
+                val maxAllowedY = (
+                        displayMetrics.heightPixels -
+                                labelContainer.height -
+                                minBottomMarginPx
+                        ).toFloat()
+
+                val minAllowedY = minTopMarginPx.toFloat()
+
+                val currentY = labelContainer.y
+
+                // Проверяем верхнюю и нижнюю границы
+                if (
+                    currentY < minAllowedY ||
+                    currentY > maxAllowedY ||
+                    currentY + labelContainer.height > displayMetrics.heightPixels
+                ) {
+
+                    // Исправляем вертикальную позицию
+                    val newY = currentY.coerceIn(
+                        minAllowedY,
+                        maxAllowedY
+                    )
+
+                    labelContainer.y = newY
+
+                    Log.e(
+                        "MainActivity",
+                        "Ярлык вышел за допустимые границы экрана"
+                    )
+
+                    // Сохраняем исправленную позицию
+                    saveLabelPosition(newY)
+                }
+
+                // Прижимаем к стороне, указанной в настройках
+                snapLabelToSide(labelContainer)
+            }
+        }
 
         fun getTopColorFromWebView() {
             Log.d("getTopColorFromWebView", "Получаем цвет для заголовка")
@@ -6258,54 +6490,56 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
             }, 500) // Задержка для полной загрузки страницы
         }
 
-
         /**
-         * Определяет цвет фона WebView в области слева от плавающего ярлыка.
-         * Записывает результат в переменную`labelBackgroundColor`.
+         * Определяет цвет фона WebView рядом с плавающим ярлыком.
+         * Для левого ярлыка анализирует область справа,
+         * для правого — область слева.
          */
         fun getColorFromAreaNearLabel() {
-            // Убедимся, что и webView, и labelContainer уже отрисованы и имеют размеры
             if (webView.width == 0 || webView.height == 0 || labelContainer.width == 0) {
                 Log.w("GetColor", "Невозможно получить цвет: View еще не отрисованы.")
                 return
             }
 
-            // Вычисляем координаты области для анализа
-            val areaSize = 10 // Размер квадрата для анализа (10x10 пикселей)
-            val margin = 10   // Отступ от ярлыка
+            val areaSize = 10
+            val margin = 10
 
-            // Координата X: слева от ярлыка с отступом
-            val x = (labelContainer.x - areaSize - margin).toInt()
+            // Определяем X в зависимости от стороны ярлыка
+            val x = if (SettingsManager.isLabelRight) {
+                // Ярлык справа — анализируем слева от него
+                (labelContainer.x - areaSize - margin).toInt()
+            } else {
+                // Ярлык слева — анализируем справа от него
+                (labelContainer.x + labelContainer.width + margin).toInt()
+            }
 
-            // Координата Y: на том же уровне, что и середина ярлыка
+            // Y на уровне середины ярлыка
             val y = (labelContainer.y + labelContainer.height / 2 - areaSize / 2).toInt()
 
-            // Проверяем, чтобы область не выходила за пределы экрана
-            if (x < 0 || y < 0 || x + areaSize > webView.width || y + areaSize > webView.height) {
+            // Проверяем границы WebView
+            if (x < 0 || y < 0 ||
+                x + areaSize > webView.width ||
+                y + areaSize > webView.height
+            ) {
                 Log.e("GetColor", "Область для анализа цвета выходит за пределы экрана.")
                 return
             }
 
-            Log.d("GetColor", "Анализ цвета в области: x=$x, y=$y, size=$areaSize")
+            Log.d(
+                "GetColor",
+                "Анализ цвета: x=$x, y=$y, size=$areaSize, right=${SettingsManager.isLabelRight}"
+            )
 
-            // Создаем Bitmap размером с нужную нам область
             val bitmap = createBitmap(areaSize, areaSize, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
 
-            // "Сдвигаем" Canvas так, чтобы он рисовал именно нужный нам прямоугольник из WebView
             canvas.translate(-x.toFloat(), -y.toFloat())
-
-            // Рисуем содержимое WebView на наш маленький Canvas
             webView.draw(canvas)
 
-            // Получаем цвет центрального пикселя нашего маленького битмапа
-            // (это будет усредненный цвет, если в области есть градиент)
             val color = bitmap.getPixel(areaSize / 2, areaSize / 2)
 
-            // Очищаем битмап
             bitmap.recycle()
 
-            // Сохраняем полученный цвет в переменную
             labelBackgroundColor = color
 
             Log.d("GetColor", "Определен цвет фона под ярлыком: $labelBackgroundColor")
@@ -6313,7 +6547,6 @@ private fun trustNetworkDialog(bssidPrefix: String, ssid: String, subnet: String
             val isLabelLight = isColorLight(labelBackgroundColor)
             setLabelTheme(isLabelLight)
         }
-
 
         fun isColorLight(color: Int): Boolean {
             val darkness =

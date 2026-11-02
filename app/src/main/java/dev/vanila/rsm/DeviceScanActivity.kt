@@ -1965,7 +1965,7 @@ class DeviceScanActivity : AppCompatActivity() {
             haCheckbox.isEnabled = false
 
             // Меняем цвет текста на серый
-            setCheckboxTextColor("#BFBDBD".toColorInt())
+            setCheckboxTextColor("#7c7b7b".toColorInt())
 
         } else {
 
@@ -1974,7 +1974,7 @@ class DeviceScanActivity : AppCompatActivity() {
             haCheckbox.isEnabled = true
 
             restoreIndividualCheckboxStates()
-            setCheckboxTextColor("#BFBDBD".toColorInt())
+            setCheckboxTextColor("#7c7b7b".toColorInt())
 
         }
 
@@ -2141,9 +2141,9 @@ class DeviceScanActivity : AppCompatActivity() {
 
             // Меняем цвет текста на серый
             //setCheckboxTextColor("#BFBDBD".toColorInt())
-            settingsCheckbox.setTextColor("#BFBDBD".toColorInt())
-            wledCheckbox.setTextColor("#BFBDBD".toColorInt())
-            haCheckbox.setTextColor("#BFBDBD".toColorInt())
+            settingsCheckbox.setTextColor("#7c7b7b".toColorInt())
+            wledCheckbox.setTextColor("#7c7b7b".toColorInt())
+            haCheckbox.setTextColor("#7c7b7b".toColorInt())
 
             searchUiCheckbox.setTextColor("#FFFFFF".toColorInt())
 
@@ -2160,7 +2160,7 @@ class DeviceScanActivity : AppCompatActivity() {
             wledCheckbox.setTextColor("#FFFFFF".toColorInt())
             haCheckbox.setTextColor("#FFFFFF".toColorInt())
 
-            searchUiCheckbox.setTextColor("#BFBDBD".toColorInt())
+            searchUiCheckbox.setTextColor("#7c7b7b".toColorInt())
 
             findViewById<LinearLayout>(R.id.ports_container).visibility = View.GONE
 
@@ -2929,7 +2929,7 @@ class DeviceScanActivity : AppCompatActivity() {
         }
 
         // 2. Settings Гайвера
-        if (checkSettings && openPorts[80] == true) {
+        if (false && checkSettings && openPorts[80] == true) {
             try {
                 val conn =
                     URL("http://$ip/settings?action=discover").openConnection() as HttpURLConnection
@@ -2952,6 +2952,53 @@ class DeviceScanActivity : AppCompatActivity() {
 
 
                 conn.disconnect()
+            } catch (_: Exception) {
+            }
+        }
+        // 2. Settings Гайвера
+        // старый /settings?action=discover
+        // новыйц: GET /discover
+        if (checkSettings && openPorts[80] == true) {
+            try {
+                var name: String? = null
+
+                //  старый endpoint
+                var conn = URL("http://$ip/settings?action=discover").openConnection() as HttpURLConnection
+                conn.connectTimeout = timeout
+                conn.readTimeout = timeout
+                conn.requestMethod = "GET"
+                conn.connect()
+
+                val oldCode = conn.responseCode
+                if (oldCode == 200) { // устаревший
+                    val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                    name = json.optString("name", "Settings $ip").takeIf { it.isNotBlank() }
+                        ?: "Settings $ip"
+                } else if (oldCode == 405) {
+                    // похоже полуторный  endpoint /discover
+                    conn.disconnect()
+                    conn = URL("http://$ip/discover").openConnection() as HttpURLConnection
+                    conn.connectTimeout = timeout
+                    conn.readTimeout = timeout
+                    conn.requestMethod = "GET"
+                    conn.connect()
+
+                    if (conn.responseCode == 200) {
+                        val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                        name = json.optString("name", "Settings $ip").takeIf { it.isNotBlank() }
+                            ?: "Settings $ip"
+                    }
+                }
+
+                conn.disconnect()
+
+                if (name != null) {
+                    Log.w(
+                        "detectDevice",
+                        "Settings: ip: $ip name: $name networkName: $networkName networkId: $networkId"
+                    )
+                    foundDevices.add(createDeviceWithFavicon(ip, name, networkName, networkId))
+                }
             } catch (_: Exception) {
             }
         }

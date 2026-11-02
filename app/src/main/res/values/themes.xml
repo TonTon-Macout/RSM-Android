@@ -22,10 +22,10 @@
         <!-- ГЛАВНАЯ -->
         <!-- Заголовок выпадающей панели -->
         <item name="headerBackgroundSrc">@drawable/header_background</item>
-        <item name="headerBackground">#D3CECE</item>
+        <item name="headerBackground">#B4A8A8</item>
 
         <!-- цвет кнолпки в выпадающей панели -->
-        <item name="buttonBackgroundTint">#A9D0C5C5</item>
+        <item name="buttonBackgroundTint">#EBB1A5A5</item>
         <!-- цвет обводки кнолпки в выпадающей панели -->
         <item name="buttonStrokeTint">#FFFFFF</item>
         <!-- фон кнопки в выпадающей панли (только форма) -->
@@ -34,7 +34,7 @@
         <item name="textButtonBackgroundTint">#FFFFFF</item>
 
         <!-- цвет адресной строки в выпадающей панели -->
-        <item name="addressBackgroundTint">#F3D3CECE</item>
+        <item name="addressBackgroundTint">#F3BDB6B6</item>
         <!-- цвет текста адресной строки в выпадающей панели -->
         <item name="textAddressBackgroundTint">?attr/textButtonBackgroundTint</item>
 
@@ -76,7 +76,7 @@
         <!-- Заголовок -->
         <item name="headerSettingsBackground">@drawable/settings_activity_baground_all_colors</item>
         <item name="SettingsBackgroundTintTop">#D3CECE</item>
-        <item name="SettingsBackgroundTintBottom">#D3CECE</item>
+        <item name="SettingsBackgroundTintBottom">#B4A8A8</item>
         <item name="SettingsBackgroundTintAngle">270</item>
         <!-- цвет знака вопроса в настройках и устройствах  -->
         <item name="questionTint">#a09c9c</item>

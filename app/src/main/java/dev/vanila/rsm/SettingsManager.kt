@@ -26,6 +26,7 @@ object SettingsManager {
     private const val KEY_OPEN_LAST_DEVICE = "open_last_device"
     private const val KEY_SOLID_COLOR_ICON = "solid_color_icon"
     private const val KEY_LABEL = "label_enabled"
+    private const val KEY_LABEL_RIGHT = "label_right"
     private const val KEY_ICON_IN_LABEL = "icon_in_label_enabled"
     private const val KEY_DOUBLE_CLICK_REFRESH = "double_click_refresh"
     private const val KEY_THEME = "app_theme"
@@ -206,6 +207,10 @@ object SettingsManager {
     var isLabelEnabled: Boolean
         get() = prefs.getBoolean(KEY_LABEL, true)
         set(value) = prefs.edit { putBoolean(KEY_LABEL, value) }
+
+    var isLabelRight: Boolean
+        get() = prefs.getBoolean(KEY_LABEL_RIGHT, true)
+        set(value) = prefs.edit { putBoolean(KEY_LABEL_RIGHT, value) }
 
     var isIconInLabelEnabled: Boolean
         get() = prefs.getBoolean(KEY_ICON_IN_LABEL, true)
